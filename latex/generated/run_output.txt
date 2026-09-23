@@ -1,0 +1,22 @@
+Financial SDE reproducibility run
+seed=20260918
+GBM fitted strong orders: EM=0.4899 +/- 0.0026, Milstein=0.9099 +/- 0.0167
+GBM analytic weak-bias order=0.9982 +/- 0.0004
+Matched strong-MAE cost: {"EM": {"mae": 0.8383291763996418, "n_steps": 128, "target_mae": 0.85}, "Milstein": {"mae": 0.7543268709086008, "n_steps": 2, "target_mae": 0.85}, "work_ratio_em_over_milstein": 64.0}
+GBM exact terminal mean: formula=105.127110, sample=105.088894
+GBM exact terminal variance: formula=1917.591686, sample=1915.728882
+Increment diagnostics: Var(dW1)/h=1.00526, Var(dW2)/h=1.00346, Corr=-0.70185
+Non-affine empirical strong slope=0.5111 +/- 0.0047
+Non-affine reference: {"finite_fraction": 1.0, "max_abs_y": 1.7965993064488124, "mean_call": 14.48371142846275, "mean_s": 105.01815038210643, "min_s": 23.146331406720527, "n_steps": 2048, "positive_s_fraction": 1.0, "se_mean_call": 0.15090279205041998, "se_mean_s": 0.21433344042175662}
+Reference refinement: {"ci_high": 0.059138620721274356, "ci_low": 0.05611432358184718, "coarse_reference_steps": 2048, "fine_reference_steps": 4096, "mean_abs_terminal_difference": 0.05762647215156077, "n_paths": 4000}
+PASS: gbm_em_strong_order_in_expected_band
+PASS: gbm_milstein_strong_order_in_expected_band
+PASS: gbm_weak_order_in_expected_band
+PASS: gbm_exact_mean_within_4_mc_se
+PASS: brownian_variance_1_within_3_percent
+PASS: brownian_variance_2_within_3_percent
+PASS: brownian_correlation_within_0_02
+PASS: nonaffine_all_paths_finite
+PASS: nonaffine_all_prices_positive
+PASS: nonaffine_empirical_strong_order_plausible
+OVERALL: PASS

@@ -1,0 +1,958 @@
+% Compile from this directory:
+%   pdflatex financial_sde_report.tex
+%   pdflatex financial_sde_report.tex
+% The experiment artifacts are regenerated from the repository root with:
+%   python financial_sde_project.py
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm,bm,mathtools}
+\usepackage[a4paper,margin=2.35cm]{geometry}
+\usepackage{graphicx}
+\graphicspath{{generated/}}
+\usepackage{booktabs,array,longtable,multirow}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{mdframed}
+\usepackage{microtype}
+\usepackage{mathptmx}
+\usepackage{url}
+
+\definecolor{bluecb}{RGB}{0,119,187}
+\definecolor{orangecb}{RGB}{238,119,51}
+\definecolor{formbg}{RGB}{250,250,245}
+\definecolor{formframe}{RGB}{180,170,140}
+\hypersetup{colorlinks=true,linkcolor=bluecb,citecolor=bluecb,urlcolor=bluecb}
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0.25em}
+\captionsetup{font=small,labelfont=bf}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{green!40!black},
+  stringstyle=\color{red!65!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  frame=single,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b
+}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newmdenv[
+  backgroundcolor=formbg,linecolor=formframe,linewidth=0.8pt,
+  roundcorner=3pt,innermargin=6pt,outermargin=5pt,
+  innertopmargin=7pt,innerbottommargin=7pt
+]{formbox}
+
+\algrenewcommand{\algorithmicrequire}{\textbf{Input:}}
+\algrenewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\title{\textbf{Reliable Numerical Simulation of Financial SDEs:}\\
+\textbf{GBM Benchmarks and a Non-Affine Volatility Model}\\[2mm]
+\large Project 1 (ODE IVP Extension Pathway: Financial SDE)}
+\author{
+  Team \#\texttt{<TEAM NUMBER>}\\
+  \small \texttt{<Name 1>, <ID 1> (Project Manager)} \quad
+  \texttt{<Name 2>, <ID 2> (Mathematical Theory)}\\
+  \small \texttt{<Name 3>, <ID 3> (Algorithm Implementation)} \quad
+  \texttt{<Name 4>, <ID 4> (Visualization \& Report)}\\
+  \small \texttt{<Name 5>, <ID 5> (Testing \& Validation)}\\
+  \small Department of Applied Mathematics
+}
+\date{18 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This project develops and validates a reproducible numerical workflow for two
+financial stochastic differential equations (SDEs).  Geometric Brownian motion
+(GBM) is first used as an exact benchmark: Euler--Maruyama (EM), scalar Milstein,
+and exact lognormal transitions are driven by identical Brownian increments.
+This coupling isolates time-discretisation error from sampling noise.  With
+$300{,}000$ paths, the fitted terminal strong-convergence slopes are
+$0.4899\pm0.0026$ for EM and $0.9099\pm0.0167$ for Milstein, consistent with the
+theoretical orders $1/2$ and $1$.  The exactly evaluable bias in
+$\mathbb{E}[S_T]$ has fitted slope $0.9982\pm0.0004$.  At a matched mean absolute
+error target of $0.85$ price units, EM uses 128 path steps while Milstein uses
+2 under the declared step-count cost measure.  The experiment also checks the
+terminal lognormal law and demonstrates that price-space updates are not
+unconditionally positivity preserving.  We then solve a bounded, non-affine
+stochastic-volatility model in log price.  Coarse paths are coupled to an
+$N_{\mathrm{ref}}=2048$ EM reference by summing fine-grid Brownian increments.
+The empirical strong slope is $0.5111\pm0.0047$; Brownian variance and
+correlation diagnostics pass, and all simulated log-price paths remain finite
+and positive.  Because the reference is numerical and call-payoff bias
+confidence intervals include zero, no unsupported weak-order claim is made.
+\end{abstract}
+
+\noindent\textbf{Keywords:} stochastic differential equations; geometric
+Brownian motion; Euler--Maruyama; Milstein method; strong convergence; weak
+convergence; stochastic volatility; Monte Carlo coupling
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction and motivation}
+% ============================================================
+
+\subsection{Problem background}
+An SDE model is useful only if its numerical error can be separated from Monte
+Carlo uncertainty.  GBM is therefore more than a toy model: its exact pathwise
+transition, moments, and terminal distribution provide an oracle against which
+an implementation can be tested.  Higham's algorithmic treatment emphasises
+precisely this role of coupled paths when illustrating EM and Milstein
+\cite{higham2001}; the broader convergence theory is developed by Kloeden and
+Platen \cite{kloedenplaten1992} and Milstein \cite{milstein1995}.
+
+The project asks a second, more practically relevant question: what changes
+when no exact transition is available?  We answer it with the prescribed
+two-factor non-affine stochastic-volatility model.  The same Brownian path is
+represented on nested grids, so agreement under refinement becomes evidence
+for convergence.  It is not relabelled as an exact error.  This distinction is
+central to reliable computational finance and underlies multilevel coupling
+methods \cite{giles2008}.
+
+\subsection{Research questions and contribution}
+The numerical investigation addresses four questions.
+\begin{enumerate}[leftmargin=2.2em]
+  \item Do coupled simulations recover the predicted GBM strong orders
+  $1/2$ (EM) and $1$ (Milstein), and weak order $1$ for the mean?
+  \item At a matched strong-error target, which method uses fewer time-step
+  coefficient evaluations?
+  \item When can price-space updates lose positivity, and does the simulated
+  terminal law agree with the exact lognormal distribution?
+  \item For the non-affine model, do nested-grid EM solutions converge, pass
+  Brownian-increment checks, remain finite and positive, and use a sufficiently
+  resolved numerical reference?
+\end{enumerate}
+
+The main contribution is a single, auditable script that implements every
+scheme, fixes all seeds, regenerates every figure and printed number, and runs
+explicit PASS/FAIL checks.  The analysis deliberately separates theorem,
+measurement, and limitation.
+
+\subsection{Report map}
+Section~\ref{sec:model} defines both models.  Section~\ref{sec:methods} derives
+the numerical schemes and convergence estimators.  Section~\ref{sec:implementation}
+documents the implementation and validation design.  Section~\ref{sec:results}
+presents GBM and non-affine experiments.  Section~\ref{sec:limitations}
+identifies what the evidence does not establish, and Section~\ref{sec:conclusion}
+concludes.  The complete source and AI/individual-contribution records appear
+in the appendices.
+
+% ============================================================
+\section{Financial SDE models}\label{sec:model}
+% ============================================================
+
+\subsection{Geometric Brownian motion}
+Let $(W_t)_{t\ge0}$ be a standard Brownian motion.  Under the physical measure,
+GBM is
+\begin{equation}
+  dS_t=\mu S_t\,dt+\sigma S_t\,dW_t,\qquad S_0>0.
+  \label{eq:gbm}
+\end{equation}
+For $f(s)=\log s$, It\^o's formula gives
+\begin{align}
+  d\log S_t
+  &=f'(S_t)dS_t+\tfrac12 f''(S_t)(dS_t)^2 \notag\\
+  &=\left(\mu-\tfrac12\sigma^2\right)dt+\sigma dW_t.
+  \label{eq:ito-log}
+\end{align}
+Integrating~\eqref{eq:ito-log} yields the exact solution
+\begin{equation}
+  S_t=S_0\exp\!\left[\left(\mu-\tfrac12\sigma^2\right)t+\sigma W_t\right].
+  \label{eq:gbm-exact}
+\end{equation}
+Consequently,
+\begin{equation}
+  \mathbb E[S_T]=S_0e^{\mu T},\qquad
+  \operatorname{Var}(S_T)=S_0^2e^{2\mu T}\bigl(e^{\sigma^2T}-1\bigr),
+  \label{eq:gbm-moments}
+\end{equation}
+and $S_T$ is lognormal.  The reproducible benchmark uses
+\begin{equation}
+  S_0=100,\qquad \mu=0.05,\qquad \sigma=0.40,\qquad T=1.
+  \label{eq:gbm-params}
+\end{equation}
+The volatility is intentionally high enough to make the coarse-step positivity
+question visible while keeping a familiar annual horizon.
+
+\subsection{Non-affine stochastic volatility}
+Write $X_t=\log S_t$.  The prescribed model is
+\begin{align}
+ dX_t &= \left(\mu-\tfrac12g(Y_t)^2\right)dt+g(Y_t)dW_t^{(1)},
+ \label{eq:nonaff-x}\\
+ dY_t &= \kappa(\theta-Y_t)dt+\xi\sqrt{1+Y_t^2}\,dW_t^{(2)},
+ \label{eq:nonaff-y}\\
+ g(y)&=\sigma_{\min}+\frac{\sigma_{\max}-\sigma_{\min}}{1+e^{-y}},
+ \qquad d\langle W^{(1)},W^{(2)}\rangle_t=\rho\,dt.
+ \label{eq:logistic}
+\end{align}
+The benchmark parameters are
+\begin{equation}
+\begin{gathered}
+S_0=100,\quad Y_0=0,\quad \mu=0.05,\quad \kappa=2,
+\quad\theta=-0.2,\quad\xi=0.6,\quad\rho=-0.7,\\
+\sigma_{\min}=0.10,\quad\sigma_{\max}=0.50,\quad T=1.
+\end{gathered}
+\label{eq:nonaff-params}
+\end{equation}
+The logistic map guarantees $0.10<g(y)<0.50$.  Its derivative is bounded,
+and $y\mapsto\sqrt{1+y^2}$ is globally Lipschitz because the magnitude of its
+derivative is at most one.  Thus the coefficients have the regularity and
+linear-growth structure needed for standard EM strong-convergence arguments;
+nevertheless, the finite reference used below remains a numerical benchmark,
+not a closed-form oracle.
+
+% ============================================================
+\section{Discretisation and mathematical analysis}\label{sec:methods}
+% ============================================================
+
+\subsection{Euler--Maruyama for GBM}
+On $t_n=nh$, $h=T/N$, let $\Delta W_n=W_{t_{n+1}}-W_{t_n}sim
+\mathcal N(0,h)$.  Freezing both coefficients at $S_n$ and integrating over one
+step gives
+\begin{equation}
+  S_{n+1}^{\mathrm{EM}}
+  =S_n^{\mathrm{EM}}+\mu S_n^{\mathrm{EM}}h
+   +\sigma S_n^{\mathrm{EM}}\Delta W_n
+  =S_n^{\mathrm{EM}}(1+\mu h+\sigma\Delta W_n).
+  \label{eq:em-gbm}
+\end{equation}
+For globally Lipschitz drift and diffusion, EM has strong order $1/2$ and weak
+order $1$ for sufficiently smooth test functions \cite{higham2001,kloedenplaten1992}.
+GBM coefficients are globally Lipschitz, so the standard result applies.
+
+\subsection{Milstein for GBM}
+The scalar It\^o--Taylor expansion retains the iterated stochastic integral
+\begin{equation}
+ \int_{t_n}^{t_{n+1}}\int_{t_n}^{s}dW_r\,dW_s
+ =\tfrac12\left[(\Delta W_n)^2-h\right].
+ \label{eq:ito-iterated}
+\end{equation}
+For diffusion $b(s)=\sigma s$, $b'(s)=\sigma$, so the Milstein update is
+\begin{equation}
+ S_{n+1}^{\mathrm{Mil}}
+ =S_n^{\mathrm{Mil}}+\mu S_n^{\mathrm{Mil}}h
+ +\sigma S_n^{\mathrm{Mil}}\Delta W_n
+ +\tfrac12\sigma^2S_n^{\mathrm{Mil}}\bigl[(\Delta W_n)^2-h\bigr].
+ \label{eq:milstein-gbm}
+\end{equation}
+Including~\eqref{eq:ito-iterated} cancels the leading stochastic Taylor term
+omitted by EM, raising the scalar strong order to $1$ while retaining weak order
+$1$ \cite{milstein1995}.
+
+\subsection{Exact transition and pathwise coupling}
+For the same increment used in~\eqref{eq:em-gbm}--\eqref{eq:milstein-gbm},
+\begin{equation}
+ S_{n+1}^{\mathrm{exact}}
+ =S_n^{\mathrm{exact}}
+ \exp\!\left[\left(\mu-\tfrac12\sigma^2\right)h+\sigma\Delta W_n\right].
+ \label{eq:exact-step}
+\end{equation}
+The exact, EM, and Milstein paths therefore share all $\Delta W_n$.  The terminal
+strong-error estimator is
+\begin{equation}
+ \widehat e_{\mathrm{s}}(h)
+ =\frac1M\sum_{m=1}^{M}\left|S_{N,m}^{(h)}-S_{T,m}^{\mathrm{exact}}\right|,
+ \label{eq:strong-estimator}
+\end{equation}
+and a log--log least-squares slope estimates $p$ in
+$\mathbb E|S_N-S_T|=O(h^p)$.  Pairing is essential: independent exact paths
+would add $O(M^{-1/2})$ sampling variability unrelated to discretisation.
+
+\subsection{Weak error and an analytic bias oracle}
+For a test function $\varphi$, weak error is
+\begin{equation}
+ e_{\mathrm{w}}(h)=\left|\mathbb E\varphi(S_N^{(h)})-
+ \mathbb E\varphi(S_T)\right|.
+ \label{eq:weak-def}
+\end{equation}
+For $\varphi(s)=s$, both EM and Milstein step multipliers have conditional mean
+$1+\mu h$.  Hence
+\begin{equation}
+ \mathbb E[S_N^{\mathrm{EM}}]
+ =\mathbb E[S_N^{\mathrm{Mil}}]
+ =S_0(1+\mu h)^N.
+ \label{eq:numerical-mean}
+\end{equation}
+Using $N=T/h$ and $\log(1+\mu h)=\mu h-\tfrac12\mu^2h^2+O(h^3)$,
+\begin{align}
+ S_0(1+\mu h)^{T/h}
+ &=S_0\exp\!\left(\mu T-\tfrac12\mu^2Th+O(h^2)\right),\\
+ e_{\mathrm w}(h)
+ &=\tfrac12S_0e^{\mu T}\mu^2T\,h+O(h^2).
+ \label{eq:weak-expansion}
+\end{align}
+Thus the mean bias has exact asymptotic order one.  The code reports both this
+deterministic bias and a paired Monte Carlo confidence interval for
+$S_N-S_T$; the former prevents sampling noise from hiding the weak rate.
+
+\subsection{Positivity analysis}
+EM is positive for a step only when
+\begin{equation}
+ 1+\mu h+\sigma\sqrt h Z_n>0,
+\end{equation}
+so the one-step failure probability is
+\begin{equation}
+ p_{\mathrm{neg,EM}}(h)
+ =\Phi\!\left(-\frac{1+\mu h}{\sigma\sqrt h}\right)>0.
+ \label{eq:em-neg-prob}
+\end{equation}
+For Milstein, the multiplier is the quadratic
+\begin{equation}
+ q(z)=\tfrac12\sigma^2hz^2+\sigma\sqrt h z
+ +1+\mu h-\tfrac12\sigma^2h.
+ \label{eq:milstein-quadratic}
+\end{equation}
+Its minimum is
+\begin{equation}
+ q_{\min}=\tfrac12+\mu h-\tfrac12\sigma^2h.
+ \label{eq:milstein-min}
+\end{equation}
+For~\eqref{eq:gbm-params} and $0<h\le1$, this is positive, explaining why no
+Milstein positivity violation is observed here.  Equation~\eqref{eq:milstein-min}
+also shows that this is parameter- and step-dependent, not unconditional
+positivity preservation.  Exact/log-price simulation remains positive by
+construction.
+
+\subsection{Correlated EM for the non-affine model}
+Generate independent $Z_{1,n},Z_{2,n}\sim\mathcal N(0,1)$ and set
+\begin{align}
+ \Delta W_n^{(1)}&=\sqrt h Z_{1,n},\\
+ \Delta W_n^{(2)}&=\sqrt h\left(\rho Z_{1,n}+\sqrt{1-\rho^2}Z_{2,n}\right).
+ \label{eq:corr-inc}
+\end{align}
+The EM update is
+\begin{align}
+ X_{n+1}&=X_n+\left(\mu-\tfrac12g(Y_n)^2\right)h
+              +g(Y_n)\Delta W_n^{(1)},
+ \label{eq:em-x}\\
+ Y_{n+1}&=Y_n+\kappa(\theta-Y_n)h
+              +\xi\sqrt{1+Y_n^2}\Delta W_n^{(2)},
+ \label{eq:em-y}\\
+ S_{n+1}&=e^{X_{n+1}}>0.
+ \label{eq:recover-s}
+\end{align}
+The logistic function is evaluated with two algebraically equivalent branches
+to avoid overflow when $|Y_n|$ is large.
+
+A scalar Milstein formula is \emph{not} applied to
+\eqref{eq:nonaff-x}--\eqref{eq:nonaff-y}.  Written in two independent Brownian
+drivers, the diffusion vector fields have nonzero cross derivatives through
+$g(Y)$ and $\sqrt{1+Y^2}$.  A full multidimensional Milstein discretisation
+would generally require cross terms and simulated iterated stochastic
+integrals.  Omitting them while claiming strong order one would be
+mathematically unjustified.
+
+\subsection{Nested-grid numerical reference}
+Let $h_{\mathrm{ref}}=T/N_{\mathrm{ref}}$.  For a coarse step $h=Kh_{\mathrm{ref}}$,
+the coupling is
+\begin{equation}
+ \Delta W_{n,\mathrm{coarse}}^{(i)}
+ =\sum_{j=0}^{K-1}\Delta W_{Kn+j,\mathrm{ref}}^{(i)},\qquad i=1,2.
+ \label{eq:nested-sum}
+\end{equation}
+Therefore coarse and fine solutions represent the same Brownian path.  We use
+$N_{\mathrm{ref}}=2048$ for the main experiment and independently compare it
+with 4096 steps on 4000 fresh paths.  For the call payoff
+$P(S_T)=(S_T-100)^+$, paired differences estimate weak bias and substantially
+reduce variance.  We report a weak trend only where its confidence interval is
+separated from zero.
+
+\subsection{Uncertainty quantification}
+For independent path-level observations $D_1,\ldots,D_M$, every displayed
+Monte Carlo mean uses
+\begin{equation}
+ \overline D\ \pm\ 1.96\frac{s_D}{\sqrt M},
+ \qquad
+ s_D^2=\frac{1}{M-1}\sum_{m=1}^{M}(D_m-\overline D)^2.
+ \label{eq:ci}
+\end{equation}
+The bands around fitted log--log lines are regression diagnostics, not repeated
+Monte Carlo uncertainty.  Their slope standard errors quantify linear-fit
+uncertainty conditional on the chosen mesh range.
+
+% ============================================================
+\section{Implementation and reproducibility}\label{sec:implementation}
+% ============================================================
+
+\subsection{Core algorithm}
+Algorithm~\ref{alg:nested} states the non-affine nested-grid calculation.  GBM
+uses the same coupling pattern with the exact step~\eqref{eq:exact-step}.
+
+\begin{algorithm}[H]
+\caption{Coupled non-affine EM convergence experiment}
+\label{alg:nested}
+\begin{algorithmic}[1]
+\Require Parameters~\eqref{eq:nonaff-params}, seed, path count $M$, fine count
+$N_{\rm ref}$, coarse counts $\mathcal N$
+\Ensure Strong errors, paired payoff biases, confidence intervals, diagnostics
+\For{each memory-safe batch of paths}
+  \State draw independent fine-grid arrays $Z_1,Z_2$
+  \State construct correlated increments using~\eqref{eq:corr-inc}
+  \State integrate~\eqref{eq:em-x}--\eqref{eq:em-y} on the reference grid
+  \For{$N\in\mathcal N$}
+    \State sum groups of $N_{\rm ref}/N$ increments using~\eqref{eq:nested-sum}
+    \State integrate the coarse path and store paired terminal differences
+  \EndFor
+\EndFor
+\State estimate means and confidence intervals using~\eqref{eq:ci}
+\State validate increment variance/correlation, finiteness, and positivity
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Single-file code structure}
+The requested submission has two primary source files.  Accordingly, the code
+is organised as small, model-agnostic functions inside
+\texttt{financial\_sde\_project.py}, rather than split across modules.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.34\textwidth}p{0.58\textwidth}}
+\toprule
+\textbf{Function group} & \textbf{Purpose}\\
+\midrule
+\texttt{gbm\_terminal\_coupled}, \texttt{run\_gbm}
+& Exact/EM/Milstein coupling, strong and weak estimators, positivity and matched-cost results.\\
+\texttt{logistic\_vol}, \texttt{em\_nonaffine\_from\_increments}
+& Stable model coefficients and swappable EM integration from supplied increments.\\
+\texttt{aggregate\_increments}, \texttt{run\_nonaffine}
+& Nested Brownian coupling, reference comparison, call payoff and diagnostics.\\
+\texttt{nonaffine\_reference\_refinement}
+& Independent $2048\rightarrow4096$ reference-resolution check.\\
+\texttt{plot\_*}, \texttt{validate}
+& Reproduce all five figures and execute ten PASS/FAIL checks.\\
+\bottomrule
+\end{tabular}
+\caption{Code organisation.  Integrators receive increments explicitly, so the
+random driver and numerical method can be tested independently.}
+\label{tab:code-structure}
+\end{table}
+
+\subsection{Reproducible protocol}
+The default run uses seed 20260918, $M=300{,}000$ GBM paths, $M=20{,}000$
+non-affine paths, batches of at most 1000 paths, and $N_{\rm ref}=2048$.  The
+command
+\begin{center}
+\texttt{python financial\_sde\_project.py}
+\end{center}
+regenerates \texttt{latex/generated/results.json},
+\texttt{run\_output.txt}, and Figures~\ref{fig:gbm-convergence}--\ref{fig:nonaff-paths}
+with fixed names and at 220 DPI.  No absolute paths are used.  A reduced
+\texttt{--quick} mode is available only as a smoke test; all report numbers are
+from the default run.  NumPy performs vectorised path operations
+\cite{harris2020}, and Matplotlib produces the figures \cite{hunter2007}.
+
+\subsection{Oracle chain and automatic checks}
+Two independent GBM oracles are used: the pathwise exact transition and the
+closed-form terminal moments/distribution.  The non-affine reference is checked
+by an independent finer grid.  Ten automatic checks cover expected-order
+bands, the exact GBM mean, both increment variances, target correlation,
+finiteness, positivity, and a plausible non-affine strong slope.  All ten pass
+in the archived output.  The checks are deliberately broad enough to avoid
+passing only one random realisation, yet narrow enough to catch a wrong
+increment scaling, correlation formula, or scheme.
+
+\subsection{Declared cost measure}
+The cost measure is the number of time steps per path, equivalently one
+drift/diffusion coefficient evaluation per step in the implemented scalar GBM
+loop.  The comparison excludes plotting, random-number setup, file I/O,
+compilation, and vector-allocation overhead.  It also does not pretend that an
+EM and a Milstein step have identical floating-point operation counts: Milstein
+evaluates an extra correction.  The reported ratio is therefore an algorithmic
+step-count comparison, not a wall-clock speedup claim.
+
+% ============================================================
+\section{Numerical experiments and results}\label{sec:results}
+% ============================================================
+
+\subsection{GBM strong and weak convergence}
+Table~\ref{tab:gbm-convergence} reports the asymptotic mesh range used for the
+fit.  Figure~\ref{fig:gbm-convergence} overlays the predicted slopes and 95\%
+fit bands.  The observed EM slope $0.4899\pm0.0026$ agrees with $1/2$; the
+Milstein slope $0.9099\pm0.0167$ approaches order one.  The small shortfall from
+one is consistent with a finite pre-asymptotic mesh range rather than evidence
+for a different theoretical order.  The analytic mean-bias slope
+$0.9982\pm0.0004$ is essentially one.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{rrrrr}
+\toprule
+$N$ & $h$ & EM strong MAE & Milstein strong MAE & exact mean bias magnitude\\
+\midrule
+4   & 0.250000 & 4.52887 & 0.460308 & 0.0325759\\
+8   & 0.125000 & 3.28870 & 0.268833 & 0.0163567\\
+16  & 0.062500 & 2.34715 & 0.149881 & 0.00819567\\
+32  & 0.031250 & 1.67424 & 0.0800666 & 0.00410218\\
+64  & 0.015625 & 1.18565 & 0.0414826 & 0.00205218\\
+128 & 0.0078125 & 0.838329 & 0.0211342 & 0.00102636\\
+256 & 0.00390625 & 0.594648 & 0.0106906 & 0.000513248\\
+\bottomrule
+\end{tabular}
+\caption{GBM convergence with $300{,}000$ coupled paths.  Error decreases at
+the theoretically expected rates; the exact weak-bias column is common to EM
+and Milstein for the linear payoff $\varphi(s)=s$.}
+\label{tab:gbm-convergence}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig01_gbm_convergence.png}
+\caption{Coupled GBM convergence.  Left: EM and Milstein terminal mean absolute
+errors follow the $h^{1/2}$ and $h$ reference trends, respectively; fit bands
+make the slope uncertainty visible.  Right: the analytically evaluable mean
+bias follows order one.  This separates discretisation error from Monte Carlo
+noise and directly supports the claimed orders.}
+\label{fig:gbm-convergence}
+\end{figure}
+
+\subsection{Matched-accuracy cost comparison}
+At the predeclared target
+$\mathbb E|S_N-S_T|\le0.85$, the coarsest tested EM grid that passes uses
+$N=128$ and attains 0.83833; Milstein passes at $N=2$ with 0.75433.
+Under the stated step-count measure, the work ratio is therefore
+\begin{equation}
+ \frac{C_{\rm EM}}{C_{\rm Mil}}=\frac{128}{2}=64.
+\end{equation}
+This is a valid matched-accuracy comparison, but it is not a claim of a
+64-fold wall-clock speedup.  The negative result implicit in the comparison is
+also important: at very loose accuracy, EM's cheaper algebra could matter;
+that regime is not measured by this target.
+
+\subsection{Terminal distribution and moment validation}
+The exact formulas give
+\begin{equation}
+ \mathbb E[S_T]=105.127110,qquad
+ \operatorname{Var}(S_T)=1917.591686.
+\end{equation}
+The exact-transition Monte Carlo sample gives 105.088894 and 1915.728882,
+respectively; the mean is within four Monte Carlo standard errors, satisfying
+the automatic oracle check.  At $N=64$, the 1\%, 5\%, 50\%, 95\%, and 99\%
+quantiles are shown in Table~\ref{tab:quantiles}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Method & 1\% & 5\% & 50\% & 95\% & 99\%\\
+\midrule
+Exact lognormal & 38.2687 & 50.2610 & 97.0446 & 187.3749 & 246.0930\\
+EM, $N=64$ & 37.9146 & 50.0592 & 97.0464 & 187.5114 & 244.2812\\
+Milstein, $N=64$ & 38.3043 & 50.2674 & 96.9520 & 187.6476 & 245.1338\\
+\bottomrule
+\end{tabular}
+\caption{GBM terminal quantiles in price units.  Central quantiles agree
+closely; the tails reveal the remaining finite-step error more sensitively.}
+\label{tab:quantiles}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig02_gbm_distribution.png}
+\caption{Terminal-law validation at $N=64$.  The density overlay checks the
+whole distribution rather than only two moments, while the quantile plot makes
+tail discrepancies visible.  Milstein tracks the exact lognormal quantiles
+more closely than EM at the same step count.}
+\label{fig:gbm-distribution}
+\end{figure}
+
+\subsection{Positivity stress test}
+At $h=1$, 0.435\% of EM paths encounter a non-positive step multiplier; at
+$h=1/2$, the rate is 0.034\%, and no violation is observed among 300,000 paths
+for $h\le1/4$.  This is consistent with the rapid Gaussian-tail decay in
+\eqref{eq:em-neg-prob}.  No Milstein violation occurs for the tested parameters,
+as predicted by~\eqref{eq:milstein-min}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\textwidth]{fig03_gbm_positivity.png}
+\caption{Observed fraction of paths with at least one non-positive update
+multiplier.  EM fails on coarse grids even though the true GBM remains positive;
+zeros at finer grids mean ``none in 300,000 paths'', not a mathematical
+guarantee.  Milstein is positive here because its quadratic multiplier has a
+positive minimum for the tested $h$, not because Milstein is unconditionally
+positivity preserving.}
+\label{fig:gbm-positivity}
+\end{figure}
+
+\subsection{Non-affine nested-grid convergence}
+Table~\ref{tab:nonaffine} compares each coarse grid with the coupled 2048-step
+reference.  Fitting the first four rows (the final row is reserved as a
+near-reference diagnostic) gives strong slope $0.5111\pm0.0047$, closely
+matching the EM benchmark $1/2$.  Every 95\% confidence interval for the paired
+call-payoff difference contains zero.  The correct conclusion is therefore
+that sampling uncertainty is already comparable to the estimated weak bias;
+the data do not support quoting a weak slope.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{rrrrr}
+\toprule
+$N$ & $h$ & strong MAE & strong 95\% CI & call bias (95\% CI)\\
+\midrule
+16  & 0.062500 & 0.886321 & [0.875404, 0.897238] & 0.004204 $[-0.010095,0.018504]$\\
+32  & 0.031250 & 0.627466 & [0.619890, 0.635042] & 0.003974 $[-0.006056,0.014005]$\\
+64  & 0.015625 & 0.441095 & [0.435856, 0.446335] & 0.003689 $[-0.003286,0.010664]$\\
+128 & 0.0078125 & 0.306001 & [0.302342, 0.309660] & 0.002141 $[-0.002714,0.006996]$\\
+256 & 0.00390625 & 0.210677 & [0.208183, 0.213171] & 0.002748 $[-0.000568,0.006064]$\\
+\bottomrule
+\end{tabular}
+\caption{Non-affine EM convergence against the coupled $N_{\rm ref}=2048$
+numerical reference using 20,000 paths.  Strong convergence is resolved, while
+the weak payoff bias is not statistically distinguishable from zero.}
+\label{tab:nonaffine}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig04_nonaffine_convergence.png}
+\caption{Nested-grid evidence for the non-affine model.  Left: the pathwise
+terminal error follows an empirical half-order trend with narrow Monte Carlo
+intervals.  Right: all payoff-bias confidence intervals meet zero, so claiming
+a weak order from these samples would over-interpret noise.}
+\label{fig:nonaff-convergence}
+\end{figure}
+
+\subsection{Increment, finiteness, positivity, and reference checks}
+The fine-grid increment diagnostics are
+\begin{equation}
+ \frac{\widehat{\operatorname{Var}}(\Delta W^{(1)})}{h}=1.00526,
+ \qquad
+ \frac{\widehat{\operatorname{Var}}(\Delta W^{(2)})}{h}=1.00346,
+ \qquad
+ \widehat{\operatorname{Corr}}=-0.70185,
+\end{equation}
+against targets $(1,1,-0.7)$.  All 20,000 reference paths are finite and
+positive.  Their estimated mean terminal price is $105.01815$ with standard
+error $0.21433$; the call value estimate is $14.48371$ with standard error
+$0.15090$.  These are model outputs, not closed-form benchmarks.
+
+On 4000 fresh coupled paths, refining the numerical reference from 2048 to 4096
+steps changes the terminal price by mean absolute amount
+\begin{equation}
+ 0.057626\quad\text{with 95\% CI }[0.056114,0.059139].
+ \label{eq:refinement-result}
+\end{equation}
+This is substantially smaller than the coarsest-grid strong errors and about
+27\% of the $N=256$ error, so the reference is adequate for the observed trend,
+though not exact.  A still finer reference would be required before reporting
+more terminal digits or resolving the weak payoff bias.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig05_nonaffine_paths.png}
+\caption{Representative non-affine paths.  Integrating $X=\log S$ guarantees
+positive displayed prices after exponentiation (left), while the logistic
+map keeps instantaneous volatility strictly between 0.10 and 0.50
+year$^{-1/2}$ (right).  These structural properties are enforced by the model
+representation rather than inferred from a finite sample.}
+\label{fig:nonaff-paths}
+\end{figure}
+
+% ============================================================
+\section{Limitations and robustness}\label{sec:limitations}
+% ============================================================
+\begin{enumerate}[leftmargin=2.2em]
+  \item \textbf{Numerical reference.}  The non-affine error is relative to EM
+  with 2048 steps.  Equation~\eqref{eq:refinement-result} quantifies, but does
+  not eliminate, reference bias.
+  \item \textbf{Weak convergence resolution.}  Paired common random numbers
+  reduce variance, yet the call-bias intervals still contain zero.  The report
+  therefore does not manufacture a weak slope.  More paths, multilevel Monte
+  Carlo, or a different payoff would be needed.
+  \item \textbf{Regression uncertainty.}  Slope standard errors diagnose the
+  chosen log--log fit.  They are not theorem proofs and do not include every
+  model-selection uncertainty, such as mesh-range choice.
+  \item \textbf{Cost definition.}  Step count is portable but omits the extra
+  arithmetic in Milstein and hardware effects.  A wall-clock study should use
+  repeated timings on the same machine and separately count random draws and
+  coefficient/derivative evaluations.
+  \item \textbf{Model risk.}  Numerical convergence does not validate GBM or
+  the non-affine model as a description of market data.  Calibration,
+  risk-neutral drift, transaction costs, jumps, and empirical fit are outside
+  this numerical-analysis project.
+  \item \textbf{Extreme paths.}  The stable logistic evaluation and batched
+  finiteness checks reduce numerical risk, but $e^X$ can overflow under much
+  longer horizons or more extreme parameters.  Production code should retain
+  log values and define an overflow policy.
+\end{enumerate}
+
+% ============================================================
+\section{Conclusions}\label{sec:conclusion}
+% ============================================================
+\begin{itemize}[leftmargin=2em]
+  \item Exact GBM coupling recovered the expected strong orders: EM
+  $0.4899\pm0.0026$ and Milstein $0.9099\pm0.0167$; the mean weak bias had order
+  $0.9982\pm0.0004$.
+  \item At matched strong MAE $\le0.85$, Milstein required 2 steps versus 128
+  for EM under the declared step-count cost, while the report avoids converting
+  that 64:1 ratio into an unsupported wall-clock claim.
+  \item Distribution and moment checks agree with the exact lognormal oracle,
+  and the coarse-grid stress test shows why price-space EM is not
+  positivity-preserving.
+  \item For the non-affine model, nested Brownian coupling produced empirical
+  half-order strong convergence and passed variance, correlation, finiteness,
+  positivity, and reference-refinement checks.  Weak payoff bias remained
+  unresolved at the available Monte Carlo precision.
+  \item A natural extension is multilevel Monte Carlo, which would reuse the
+  same nested coupling to reduce the cost of resolving weak payoffs
+  \cite{giles2008}; a second extension is a correctly implemented
+  multidimensional Milstein scheme with iterated stochastic integrals.
+\end{itemize}
+
+% ============================================================
+\section*{References}
+\addcontentsline{toc}{section}{References}
+% ============================================================
+\begin{thebibliography}{99}
+\bibitem{higham2001}
+D. J. Higham, ``An algorithmic introduction to numerical simulation of
+stochastic differential equations,'' \emph{SIAM Review}, vol.~43, no.~3,
+pp.~525--546, 2001. doi: \href{https://doi.org/10.1137/S0036144500378302}{10.1137/S0036144500378302}.
+
+\bibitem{kloedenplaten1992}
+P. E. Kloeden and E. Platen, \emph{Numerical Solution of Stochastic
+Differential Equations}. Berlin: Springer, 1992.
+doi: \href{https://doi.org/10.1007/978-3-662-12616-5}{10.1007/978-3-662-12616-5}.
+
+\bibitem{milstein1995}
+G. N. Milstein, \emph{Numerical Integration of Stochastic Differential
+Equations}. Dordrecht: Springer, 1995.
+doi: \href{https://doi.org/10.1007/978-94-015-8455-5}{10.1007/978-94-015-8455-5}.
+
+\bibitem{giles2008}
+M. B. Giles, ``Multilevel Monte Carlo path simulation,''
+\emph{Operations Research}, vol.~56, no.~3, pp.~607--617, 2008.
+doi: \href{https://doi.org/10.1287/opre.1070.0496}{10.1287/opre.1070.0496}.
+
+\bibitem{harris2020}
+C. R. Harris et al., ``Array programming with NumPy,'' \emph{Nature},
+vol.~585, pp.~357--362, 2020.
+doi: \href{https://doi.org/10.1038/s41586-020-2649-2}{10.1038/s41586-020-2649-2}.
+
+\bibitem{hunter2007}
+J. D. Hunter, ``Matplotlib: A 2D graphics environment,''
+\emph{Computing in Science \& Engineering}, vol.~9, no.~3, pp.~90--95, 2007.
+doi: \href{https://doi.org/10.1109/MCSE.2007.55}{10.1109/MCSE.2007.55}.
+
+\bibitem{coursebrief}
+MTH321 teaching team, \emph{Project 1 Brief: Numerical Solution of ODE Initial
+Value Problems}, extension pathway 4, 2026, course material supplied with the
+project.
+
+\bibitem{problempack}
+MTH321 teaching team, \emph{Problem Pack: Five Suggested Directions for the ODE
+IVP Project}, ``Financial SDE: GBM benchmark and non-affine volatility,'' 2026,
+course material supplied with the project.
+\end{thebibliography}
+
+\appendix
+
+% ============================================================
+\section{Reproduction record and complete console output}
+% ============================================================
+\subsection{Environment and commands}
+Install the declared dependencies in any isolated Python environment:
+\begin{center}
+\texttt{python -m pip install numpy matplotlib}
+\end{center}
+From the repository root run
+\begin{center}
+\texttt{python financial\_sde\_project.py}.
+\end{center}
+All paths are relative; the output directory is created automatically.  The
+JSON file records Python, NumPy, Matplotlib, platform, seed, sample sizes,
+parameters, every table row, validation results, and wall time.
+
+\subsection{Archived program output}
+\lstinputlisting[language={},caption={Complete output from the full reproducibility run.}]{generated/run_output.txt}
+
+% ============================================================
+\section{Complete Python source code}
+% ============================================================
+The following listing is the exact code used to generate every reported result
+and figure.
+\lstinputlisting[caption={Complete source: \texttt{financial\_sde\_project.py}.}]{../financial_sde_project.py}
+
+% ============================================================
+\section{AI Transparency Log}
+% ============================================================
+\subsection{Tools used}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.25\textwidth}p{0.20\textwidth}p{0.46\textwidth}}
+\toprule
+Tool & Version/date & Primary use\\
+\midrule
+OpenAI Codex & 18 September 2026 & Requirements mapping, derivation drafting,
+Python implementation, experiment execution, result interpretation, and
+LaTeX assembly.\\
+NumPy / Matplotlib & Versions recorded in \texttt{results.json} & Vectorised
+Monte Carlo computation and deterministic figure generation.\\
+\bottomrule
+\end{tabular}
+\caption{AI and software tools.  Team members must replace or supplement this
+record if they make later changes with other tools.}
+\end{table}
+
+\subsection{Significant AI-assisted claim audits}
+\begin{longtable}{p{0.06\textwidth}p{0.43\textwidth}p{0.43\textwidth}}
+\toprule
+Item & Prompt/claim/assumptions & Risk and possible falsifier\\
+\midrule
+1 & Derive and test the GBM strong orders of EM and Milstein under pathwise
+coupling. & A wrong increment scale or uncoupled oracle can create a false
+slope.  Falsifiers: exact-transition errors fail to decrease or fitted slopes
+leave the declared acceptance bands.\\
+2 & Use a nested EM reference for the non-affine model and describe the strong
+rate as empirical. & Treating a discretised reference as exact biases the
+claim.  Falsifier: the 2048-to-4096 reference difference is comparable to the
+coarse-grid error or refinement ceases to reduce error.\\
+3 & Compare EM and Milstein cost at matched accuracy. & Counting only steps can
+overstate a speed advantage because a Milstein step has extra algebra.
+Falsifier: repeated wall-clock or operation-count measurements reverse the
+comparison at the same error target.\\
+\bottomrule
+\end{longtable}
+
+\subsection{Independent verification and decisions}
+\begin{longtable}{p{0.06\textwidth}p{0.46\textwidth}p{0.40\textwidth}}
+\toprule
+Item & Independent check and evidence location & Final decision/modification/limitation\\
+\midrule
+1 & Exact GBM transition, exact moments, analytic mean bias, Tables
+\ref{tab:gbm-convergence}--\ref{tab:quantiles}, and automatic order checks. &
+Accepted the strong/weak claims; reported fitted standard errors and separated
+analytic weak bias from Monte Carlo estimates.\\
+2 & Fresh coupled 2048-to-4096 refinement, Eq.~\eqref{eq:refinement-result},
+plus increment variance/correlation checks. & Called the result ``empirical'';
+did not describe the reference as exact and did not claim a weak payoff slope.\\
+3 & Same strong-MAE threshold for both schemes and explicit cost exclusions in
+Section~\ref{sec:implementation}. & Reported a 64:1 step-count ratio only;
+explicitly withheld a wall-clock speedup claim.\\
+\bottomrule
+\end{longtable}
+
+\subsection{Intellectual ownership declaration}
+Before submission, every member must complete and sign the table below.  Each
+signer affirms that they can derive the equations, explain and modify the
+team-owned code, identify trusted library interfaces, and reproduce the
+validation without AI assistance during the viva.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.17\textwidth}p{0.15\textwidth}p{0.35\textwidth}p{0.24\textwidth}}
+\toprule
+Name & Signature & Team-owned artefact/contribution & Trusted dependency/interface\\
+\midrule
+\texttt{<Name 1>} & & & \\
+\texttt{<Name 2>} & & & \\
+\texttt{<Name 3>} & & & \\
+\texttt{<Name 4>} & & & \\
+\texttt{<Name 5>} & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Individual Contribution Statements}
+% ============================================================
+The following forms are intentionally not pre-filled: contribution claims must
+be written by the corresponding student and remain traceable to the team's Git
+history.  Copy the appropriate concrete evidence (function, equation, figure,
+test, or report section) rather than writing ``worked on the report.''
+
+\newcommand{\icsform}[2]{
+\begin{formbox}
+\textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
+\textbf{Name:} \texttt{<#1>} \hfill \textbf{Role:} \texttt{<#2>}\\[0.4em]
+\textbf{The specific things I did this project:}
+\begin{enumerate}[leftmargin=2em]
+\item \texttt{<Name a file/function/equation/figure and the exact work done.>}
+\item \texttt{<Name a validation or review action and its evidence location.>}
+\item \texttt{<Name a report section or experiment and the decision made.>}
+\end{enumerate}
+\textbf{The hardest conceptual obstacle and how I overcame it:}\\
+\texttt{<Specific mathematical or algorithmic difficulty.>}\\[0.4em]
+\textbf{One AI-assisted item I used and what I changed:}\\
+\texttt{<Cross-reference AI Transparency Log item 1, 2, or 3.>}\\[0.4em]
+\textbf{What I would do differently / what I still need to understand:}\\
+\texttt{<Honest reflection.>}\\[0.6em]
+\textbf{Signature:} \underline{\hspace{4cm}}\qquad
+\textbf{Date:} \underline{\hspace{2.5cm}}
+\end{formbox}
+\newpage
+}
+
+\icsform{Name 1}{Project Manager}
+\icsform{Name 2}{Mathematical Theory}
+\icsform{Name 3}{Algorithm Implementation}
+\icsform{Name 4}{Visualization \& Report}
+\icsform{Name 5}{Testing \& Validation}
+
+% ============================================================
+\section{Submission evidence matrix}
+% ============================================================
+\begin{longtable}{p{0.33\textwidth}p{0.58\textwidth}}
+\toprule
+\textbf{Course requirement} & \textbf{Evidence in this submission}\\
+\midrule
+SDE-specific methods and theory & Sections~\ref{sec:model}--\ref{sec:methods}:
+exact GBM, EM, Milstein, strong/weak definitions, positivity, and coupled
+non-affine EM.\\
+Independent oracle & Exact transition, exact moments/distribution, analytic
+mean bias, plus non-affine reference refinement.\\
+Observed order for at least two methods & Table~\ref{tab:gbm-convergence} and
+Figure~\ref{fig:gbm-convergence}, with slopes and fit uncertainty.\\
+Monte Carlo uncertainty & Path-level 95\% confidence intervals in
+Table~\ref{tab:nonaffine} and explicit formula~\eqref{eq:ci}.\\
+Matched-accuracy cost & Section~\ref{sec:results}: common MAE target 0.85,
+declared step-count cost, exclusions, and limitation.\\
+Distribution and sanity checks & Figure~\ref{fig:gbm-distribution},
+Table~\ref{tab:quantiles}, moment oracle, increment variance/correlation,
+finiteness, positivity.\\
+Non-affine nested validation & Equation~\eqref{eq:nested-sum},
+Table~\ref{tab:nonaffine}, Figure~\ref{fig:nonaff-convergence}, and
+2048-to-4096 refinement.\\
+Reproducible code and figures & One command regenerates five fixed-name,
+220-DPI figures, JSON, and console output; fixed seed; no absolute paths.\\
+Interpretive visualisations & Every figure has units, a colorblind-safe palette,
+and a caption stating both the evidence and its significance.\\
+Scientific limitations & Section~\ref{sec:limitations} separates numerical
+convergence, reference error, sampling uncertainty, cost, and model risk.\\
+AI log and ICS & Appendices C and D, with audit/falsifier records and five
+member-specific forms.\\
+\bottomrule
+\end{longtable}
+
+\end{document}
