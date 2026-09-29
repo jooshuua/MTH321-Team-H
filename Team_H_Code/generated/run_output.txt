@@ -1,0 +1,22 @@
+Financial SDE reproducibility run
+seed=20260918
+GBM fitted strong orders: EM=0.4899 +/- 0.0026, Milstein=0.9099 +/- 0.0167
+GBM analytic weak-bias order=0.9982 +/- 0.0004
+Matched strong-MAE cost: {"EM": {"mae": 0.8383291763996419, "n_steps": 128, "target_mae": 0.85}, "Milstein": {"mae": 0.7543268709086008, "n_steps": 2, "target_mae": 0.85}, "work_ratio_em_over_milstein": 64.0}
+GBM exact terminal mean: formula=105.127110, sample=105.088894
+GBM exact terminal variance: formula=1917.591686, sample=1915.728882
+Increment diagnostics: Var(dW1)/h=1.00526, Var(dW2)/h=1.00346, Corr=-0.70185
+Non-affine empirical strong slope=0.5111 +/- 0.0047
+Non-affine reference: {"finite_fraction": 1.0, "max_abs_y": 1.7965993064488124, "mean_call": 14.48371142846275, "mean_s": 105.01815038210643, "min_s": 23.146331406720527, "n_steps": 2048, "positive_s_fraction": 1.0, "se_mean_call": 0.15090279205041998, "se_mean_s": 0.21433344042175662}
+Reference refinement: {"adjacent_difference_ratio": 0.7085506319110334, "comparisons": [{"ci_high": 0.05901645270326302, "ci_low": 0.05595295590193478, "coarse_reference_steps": 2048, "fine_reference_steps": 4096, "mean_abs_terminal_difference": 0.0574847043025989}, {"ci_high": 0.04180871903825117, "ci_low": 0.03965292807939954, "coarse_reference_steps": 4096, "fine_reference_steps": 8192, "mean_abs_terminal_difference": 0.04073082355882535}], "finest_steps": 8192, "fit_coarse_steps": [16, 32, 64, 128], "max_slope_change_vs_base": 0.01166184062199277, "n_paths": 4000, "seed": 20269918, "sensitivity": [{"reference_steps": 2048, "rows": [{"h": 0.0625, "n_steps": 16, "strong_ci_high": 0.9109378867335153, "strong_ci_low": 0.8634839415178409, "strong_mae_vs_ref": 0.8872109141256781}, {"h": 0.03125, "n_steps": 32, "strong_ci_high": 0.6493770935129758, "strong_ci_low": 0.6155011833585738, "strong_mae_vs_ref": 0.6324391384357748}, {"h": 0.015625, "n_steps": 64, "strong_ci_high": 0.4502733241559697, "strong_ci_low": 0.42690418744705133, "strong_mae_vs_ref": 0.4385887558015105}, {"h": 0.0078125, "n_steps": 128, "strong_ci_high": 0.3228446721953073, "strong_ci_low": 0.3063247414875041, "strong_mae_vs_ref": 0.3145847068414057}, {"h": 0.00390625, "n_steps": 256, "strong_ci_high": 0.21745398937830768, "strong_ci_low": 0.20615637684753974, "strong_mae_vs_ref": 0.2118051831129237}], "slope": 0.5015543552269192, "slope_se": 0.006404514667365944}, {"reference_steps": 4096, "rows": [{"h": 0.0625, "n_steps": 16, "strong_ci_high": 0.9114917601764423, "strong_ci_low": 0.8638576945766145, "strong_mae_vs_ref": 0.8876747273765284}, {"h": 0.03125, "n_steps": 32, "strong_ci_high": 0.6527488433659578, "strong_ci_low": 0.6187284341127033, "strong_mae_vs_ref": 0.6357386387393306}, {"h": 0.015625, "n_steps": 64, "strong_ci_high": 0.4551136898625716, "strong_ci_low": 0.43153292731474946, "strong_mae_vs_ref": 0.44332330858866054}, {"h": 0.0078125, "n_steps": 128, "strong_ci_high": 0.3289843906305024, "strong_ci_low": 0.3121720797554169, "strong_mae_vs_ref": 0.32057823519295964}, {"h": 0.00390625, "n_steps": 256, "strong_ci_high": 0.22819815691360326, "strong_ci_low": 0.21640750962923813, "strong_mae_vs_ref": 0.2223028332714207}], "slope": 0.49281384855484983, "slope_se": 0.006791635651897592}, {"reference_steps": 8192, "rows": [{"h": 0.0625, "n_steps": 16, "strong_ci_high": 0.9125359415603413, "strong_ci_low": 0.8648011959602977, "strong_mae_vs_ref": 0.8886685687603195}, {"h": 0.03125, "n_steps": 32, "strong_ci_high": 0.6545216083206474, "strong_ci_low": 0.6204006967154417, "strong_mae_vs_ref": 0.6374611525180446}, {"h": 0.015625, "n_steps": 64, "strong_ci_high": 0.45722212521213856, "strong_ci_low": 0.43350662675270435, "strong_mae_vs_ref": 0.44536437598242146}, {"h": 0.0078125, "n_steps": 128, "strong_ci_high": 0.3313930412735289, "strong_ci_low": 0.3144219069582455, "strong_mae_vs_ref": 0.3229074741158872}, {"h": 0.00390625, "n_steps": 256, "strong_ci_high": 0.23323910350683036, "strong_ci_low": 0.2212974394404174, "strong_mae_vs_ref": 0.22726827147362388}], "slope": 0.4898925146049264, "slope_se": 0.006917359568716936}]}
+PASS: gbm_em_strong_order_in_expected_band
+PASS: gbm_milstein_strong_order_in_expected_band
+PASS: gbm_weak_order_in_expected_band
+PASS: gbm_exact_mean_within_4_mc_se
+PASS: brownian_variance_1_within_3_percent
+PASS: brownian_variance_2_within_3_percent
+PASS: brownian_correlation_within_0_02
+PASS: nonaffine_all_paths_finite
+PASS: nonaffine_all_prices_positive
+PASS: nonaffine_empirical_strong_order_plausible
+OVERALL: PASS
