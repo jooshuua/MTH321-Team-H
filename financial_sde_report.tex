@@ -71,12 +71,12 @@
 \textbf{GBM Benchmarks and a Non-Affine Volatility Model}\\[2mm]
 \large Project 1 (ODE IVP Extension Pathway: Financial SDE)}
 \author{
-  Team \#\texttt{<TEAM NUMBER>}\\
-  \small \texttt{<Name 1>, <ID 1> (Project Manager)} \quad
-  \texttt{<Name 2>, <ID 2> (Mathematical Theory)}\\
-  \small \texttt{<Name 3>, <ID 3> (Algorithm Implementation)} \quad
-  \texttt{<Name 4>, <ID 4> (Visualization \& Report)}\\
-  \small \texttt{<Name 5>, <ID 5> (Testing \& Validation)}\\
+  \texttt{Team H}\\
+  \small \texttt{Jinyang Wang, 2364059 (Project Manager)} \and
+  \texttt{Yangxiaoxiang Zheng, 1929725 (Mathematical Theory)}\\
+  \small \texttt{Jinsen Chen, 2363993 (Algorithm Implementation)} \and
+  \texttt{Zheyuan Zheng, 2362114 (Visualization \& Report)}\\
+  \small \texttt{Dongdong Hao, 2364312 (Testing \& Validation)}\\
   \small Department of Applied Mathematics
 }
 \date{18 September 2026}
@@ -97,12 +97,12 @@ $\mathbb{E}[S_T]$ has fitted slope $0.9982\pm0.0004$.  At a matched mean absolut
 error target of $0.85$ price units, EM uses 128 path steps while Milstein uses
 2 under the declared step-count cost measure.  The experiment also checks the
 terminal lognormal law and demonstrates that price-space updates are not
-unconditionally positivity preserving.  We then solve a bounded, non-affine
-stochastic-volatility model in log price.  Coarse paths are coupled to an
+unconditionally positivity preserving.  We then solve a non-affine
+stochastic-volatility model with bounded volatility in log price.  Coarse paths are coupled to an
 $N_{\mathrm{ref}}=2048$ EM reference by summing fine-grid Brownian increments.
 The empirical strong slope is $0.5111\pm0.0047$; Brownian variance and
-correlation diagnostics pass, and all simulated log-price paths remain finite
-and positive.  Because the reference is numerical and call-payoff bias
+correlation diagnostics pass, and all checked reference terminal states are
+finite, with positive terminal prices.  Because the reference is numerical and call-payoff bias
 confidence intervals include zero, no unsupported weak-order claim is made.
 \end{abstract}
 
@@ -231,7 +231,7 @@ not a closed-form oracle.
 % ============================================================
 
 \subsection{Euler--Maruyama for GBM}
-On $t_n=nh$, $h=T/N$, let $\Delta W_n=W_{t_{n+1}}-W_{t_n}sim
+On $t_n=nh$, $h=T/N$, let $\Delta W_n=W_{t_{n+1}}-W_{t_n}\sim
 \mathcal N(0,h)$.  Freezing both coefficients at $S_n$ and integrating over one
 step gives
 \begin{equation}
@@ -377,7 +377,8 @@ the coupling is
 \end{equation}
 Therefore coarse and fine solutions represent the same Brownian path.  We use
 $N_{\mathrm{ref}}=2048$ for the main experiment and independently compare it
-with 4096 steps on 4000 fresh paths.  For the call payoff
+with 4096 and 8192 steps on 4000 fresh, mutually coupled paths.
+The same validation sample is used to assess sensitivity to the reference grid.  For the call payoff
 $P(S_T)=(S_T-100)^+$, paired differences estimate weak bias and substantially
 reduce variance.  We report a weak trend only where its confidence interval is
 separated from zero.
@@ -443,9 +444,9 @@ is organised as small, model-agnostic functions inside
 \texttt{aggregate\_increments}, \texttt{run\_nonaffine}
 & Nested Brownian coupling, reference comparison, call payoff and diagnostics.\\
 \texttt{nonaffine\_reference\_refinement}
-& Independent $2048\rightarrow4096$ reference-resolution check.\\
+& Coupled $2048\rightarrow4096\rightarrow8192$ reference refinement and slope sensitivity.\\
 \texttt{plot\_*}, \texttt{validate}
-& Reproduce all five figures and execute ten PASS/FAIL checks.\\
+& Reproduce all six figures and execute ten PASS/FAIL checks.\\
 \bottomrule
 \end{tabular}
 \caption{Code organisation.  Integrators receive increments explicitly, so the
@@ -460,8 +461,8 @@ command
 \begin{center}
 \texttt{python financial\_sde\_project.py}
 \end{center}
-regenerates \texttt{latex/generated/results.json},
-\texttt{run\_output.txt}, and Figures~\ref{fig:gbm-convergence}--\ref{fig:nonaff-paths}
+regenerates \texttt{generated/results.json},
+\texttt{run\_output.txt}, and Figures~\ref{fig:gbm-convergence}--\ref{fig:reference-sensitivity}
 with fixed names and at 220 DPI.  No absolute paths are used.  A reduced
 \texttt{--quick} mode is available only as a smoke test; all report numbers are
 from the default run.  NumPy performs vectorised path operations
@@ -469,8 +470,8 @@ from the default run.  NumPy performs vectorised path operations
 
 \subsection{Oracle chain and automatic checks}
 Two independent GBM oracles are used: the pathwise exact transition and the
-closed-form terminal moments/distribution.  The non-affine reference is checked
-by an independent finer grid.  Ten automatic checks cover expected-order
+closed-form terminal moments/distribution.  The non-affine reference is compared
+with two finer grids on a fresh, commonly coupled validation sample.  Ten automatic checks cover expected-order
 bands, the exact GBM mean, both increment variances, target correlation,
 finiteness, positivity, and a plausible non-affine strong slope.  All ten pass
 in the archived output.  The checks are deliberately broad enough to avoid
@@ -491,9 +492,9 @@ step-count comparison, not a wall-clock speedup claim.
 % ============================================================
 
 \subsection{GBM strong and weak convergence}
-Table~\ref{tab:gbm-convergence} reports the asymptotic mesh range used for the
+Table~\ref{tab:gbm-convergence} reports the mesh range used for the
 fit.  Figure~\ref{fig:gbm-convergence} overlays the predicted slopes and 95\%
-fit bands.  The observed EM slope $0.4899\pm0.0026$ agrees with $1/2$; the
+fit bands.  The observed EM slope $0.4899\pm0.0026$ is close to $1/2$; the
 Milstein slope $0.9099\pm0.0167$ approaches order one.  The small shortfall from
 one is consistent with a finite pre-asymptotic mesh range rather than evidence
 for a different theoretical order.  The analytic mean-bias slope
@@ -545,10 +546,24 @@ This is a valid matched-accuracy comparison, but it is not a claim of a
 also important: at very loose accuracy, EM's cheaper algebra could matter;
 that regime is not measured by this target.
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.82\textwidth]
+    {generated/fig07_gbm_cost_accuracy.png}
+    \caption{GBM strong error versus the declared computational cost, measured as
+    the number of time steps per path. Both methods are compared at the same target
+    mean absolute terminal error of \(0.85\) price units. Euler--Maruyama first meets
+    the target at \(N=128\), whereas Milstein first meets it at \(N=2\), giving a
+    \(64{:}1\) step-count ratio. This is an algorithmic step-count comparison, not a
+    claim of a \(64\)-fold wall-clock speedup; random-number generation, plotting,
+    file I/O, setup, and the extra arithmetic in a Milstein step are not included.}
+    \label{fig:gbm-cost-accuracy}
+\end{figure}
+
 \subsection{Terminal distribution and moment validation}
 The exact formulas give
 \begin{equation}
- \mathbb E[S_T]=105.127110,qquad
+ \mathbb E[S_T]=105.127110,\qquad
  \operatorname{Var}(S_T)=1917.591686.
 \end{equation}
 The exact-transition Monte Carlo sample gives 105.088894 and 1915.728882,
@@ -578,8 +593,8 @@ closely; the tails reveal the remaining finite-step error more sensitively.}
 \includegraphics[width=0.98\textwidth]{fig02_gbm_distribution.png}
 \caption{Terminal-law validation at $N=64$.  The density overlay checks the
 whole distribution rather than only two moments, while the quantile plot makes
-tail discrepancies visible.  Milstein tracks the exact lognormal quantiles
-more closely than EM at the same step count.}
+tail discrepancies visible.  Both methods approximate the exact lognormal
+quantiles; Milstein is closer at some, but not all, reported quantiles.}
 \label{fig:gbm-distribution}
 \end{figure}
 
@@ -652,19 +667,69 @@ The fine-grid increment diagnostics are
 \end{equation}
 against targets $(1,1,-0.7)$.  All 20,000 reference paths are finite and
 positive.  Their estimated mean terminal price is $105.01815$ with standard
-error $0.21433$; the call value estimate is $14.48371$ with standard error
+error $0.21433$; the undiscounted call-payoff mean estimate is $14.48371$ with standard error
 $0.15090$.  These are model outputs, not closed-form benchmarks.
 
-On 4000 fresh coupled paths, refining the numerical reference from 2048 to 4096
-steps changes the terminal price by mean absolute amount
+On 4000 fresh validation paths (seed 20269918), Brownian increments are
+generated at 8192 steps and aggregated to all coarser grids.  The 2048-,
+4096-, and 8192-step references therefore share the same Brownian paths.
+Refining from 2048 to 4096 steps gives a mean absolute terminal difference of
 \begin{equation}
- 0.057626\quad\text{with 95\% CI }[0.056114,0.059139].
+ 0.057485\quad\text{with 95\% CI }[0.055953,0.059016].
  \label{eq:refinement-result}
 \end{equation}
-This is substantially smaller than the coarsest-grid strong errors and about
-27\% of the $N=256$ error, so the reference is adequate for the observed trend,
-though not exact.  A still finer reference would be required before reporting
-more terminal digits or resolving the weak payoff bias.
+This value is recomputed on the common three-grid sample and supersedes the
+earlier two-grid validation value; the main 20,000-path experiment is unchanged.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{rrr}
+\toprule
+Reference steps & Terminal MAE & 95\% MC CI\\
+\midrule
+$2048\rightarrow4096$ & 0.057485 & [0.055953, 0.059016]\\
+$4096\rightarrow8192$ & 0.040731 & [0.039653, 0.041809]\\
+\bottomrule
+\end{tabular}
+\caption{Two reference refinements on the same 4000 validation paths.
+These are differences between numerical solutions, not exact-solution errors.}
+\label{tab:reference-refinement}
+\end{table}
+
+The second mean difference is 0.708551 times the first, compared with
+$1/\sqrt{2}\approx0.7071$ as a half-order scaling benchmark.
+The decreasing differences support refinement consistency for this experiment;
+they do not provide an upper bound for the error relative to the exact solution.
+
+\paragraph{Sensitivity of the fitted slope to the reference grid.}
+For each reference, the same 4000 validation paths are also integrated at
+$N=16,32,64,128,256$.  All three fits use $N=16,32,64,128$, retaining
+$N=256$ only as a diagnostic, as in the main experiment.
+\begin{table}[H]
+\centering
+\begin{tabular}{rrr}
+\toprule
+$N_{\rm ref}$ & Fitted slope & OLS standard error\\
+\midrule
+2048 & 0.501554 & 0.006405\\
+4096 & 0.492814 & 0.006792\\
+8192 & 0.489893 & 0.006917\\
+\bottomrule
+\end{tabular}
+\caption{Reference-grid sensitivity with fixed validation paths and fitting
+range.  Standard errors describe the log--log fits, not confidence intervals
+accounting for all Monte Carlo and reference uncertainty.}
+\label{tab:reference-slopes}
+\end{table}
+Relative to the 2048-step validation fit, the maximum slope change is 0.011662.
+The three slopes remain close to one half, supporting the empirical half-order
+trend under reference refinement over this fitting range.  These validation
+slopes are separate from the main 20,000-path estimate $0.5111$; differences
+between samples should not be attributed solely to the reference grid.
+The full gridwise MAEs and confidence intervals are recorded in
+\texttt{generated/results.json}.  This study checks two finer reference step
+sizes, but the 8192-step solution remains numerical and weak payoff bias is
+still unresolved.
 
 \begin{figure}[H]
 \centering
@@ -677,13 +742,25 @@ representation rather than inferred from a finite sample.}
 \label{fig:nonaff-paths}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{fig06_reference_sensitivity.png}
+\caption{Supplementary reference validation on 4000 common paths.
+Left: adjacent-reference differences with 95\% Monte Carlo intervals.
+Right: coarse-grid differences against three references; the legend slopes
+use only $N=16,32,64,128$.  The empirical trend persists under refinement.}
+\label{fig:reference-sensitivity}
+\end{figure}
+
 % ============================================================
 \section{Limitations and robustness}\label{sec:limitations}
 % ============================================================
 \begin{enumerate}[leftmargin=2.2em]
   \item \textbf{Numerical reference.}  The non-affine error is relative to EM
-  with 2048 steps.  Equation~\eqref{eq:refinement-result} quantifies, but does
-  not eliminate, reference bias.
+  with 2048 steps.  Equation~\eqref{eq:refinement-result} measures a difference
+  between two numerical references, not the error relative to the exact
+  solution.  Two finer references and the fixed-sample slope comparison
+  support the observed trend, but do not eliminate reference error.
   \item \textbf{Weak convergence resolution.}  Paired common random numbers
   reduce variance, yet the call-bias intervals still contain zero.  The report
   therefore does not manufacture a weak slope.  More paths, multilevel Monte
@@ -719,8 +796,11 @@ representation rather than inferred from a finite sample.}
   and the coarse-grid stress test shows why price-space EM is not
   positivity-preserving.
   \item For the non-affine model, nested Brownian coupling produced empirical
-  half-order strong convergence and passed variance, correlation, finiteness,
-  positivity, and reference-refinement checks.  Weak payoff bias remained
+  half-order convergence relative to the 2048-step reference and passed the
+  reported variance, correlation, terminal-finiteness, and terminal-positivity
+  checks.  Two reference refinements and a common-sample slope comparison
+  support stability of the half-order trend over the tested fitting range.
+  Weak payoff bias remained
   unresolved at the available Monte Carlo precision.
   \item A natural extension is multilevel Monte Carlo, which would reuse the
   same nested coupling to reduce the cost of resolving weak payoffs
@@ -729,7 +809,6 @@ representation rather than inferred from a finite sample.}
 \end{itemize}
 
 % ============================================================
-\section*{References}
 \addcontentsline{toc}{section}{References}
 % ============================================================
 \begin{thebibliography}{99}
@@ -800,7 +879,11 @@ parameters, every table row, validation results, and wall time.
 % ============================================================
 The following listing is the exact code used to generate every reported result
 and figure.
-\lstinputlisting[caption={Complete source: \texttt{financial\_sde\_project.py}.}]{../financial_sde_project.py}
+\IfFileExists{../financial_sde_project.py}{%
+\lstinputlisting[caption={Complete source: \texttt{financial\_sde\_project.py}.}]{../financial_sde_project.py}%
+}{%
+\lstinputlisting[caption={Complete source: \texttt{financial\_sde\_project.py}.}]{financial_sde_project.py}%
+}
 
 % ============================================================
 \section{AI Transparency Log}
@@ -825,42 +908,76 @@ record if they make later changes with other tools.}
 \end{table}
 
 \subsection{Significant AI-assisted claim audits}
-\begin{longtable}{p{0.06\textwidth}p{0.43\textwidth}p{0.43\textwidth}}
-\toprule
-Item & Prompt/claim/assumptions & Risk and possible falsifier\\
-\midrule
-1 & Derive and test the GBM strong orders of EM and Milstein under pathwise
-coupling. & A wrong increment scale or uncoupled oracle can create a false
-slope.  Falsifiers: exact-transition errors fail to decrease or fitted slopes
-leave the declared acceptance bands.\\
-2 & Use a nested EM reference for the non-affine model and describe the strong
-rate as empirical. & Treating a discretised reference as exact biases the
-claim.  Falsifier: the 2048-to-4096 reference difference is comparable to the
-coarse-grid error or refinement ceases to reduce error.\\
-3 & Compare EM and Milstein cost at matched accuracy. & Counting only steps can
-overstate a speed advantage because a Milstein step has extra algebra.
-Falsifier: repeated wall-clock or operation-count measurements reverse the
-comparison at the same error target.\\
-\bottomrule
-\end{longtable}
+
+% C.2 中替换表格的开始和结束
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+
+\begin{tabular}{|p{0.05\textwidth}|p{0.44\textwidth}|p{0.44\textwidth}|}
+\hline
+\textbf{Item} &
+\textbf{Prompt (near-verbatim) and assumptions} &
+\textbf{Risk and possible falsifier} \\
+\hline
+
+% 保留上一版给你的第 1 行内容
+1 &
+``Please derive the Euler--Maruyama and Milstein updates for GBM and help me build a NumPy convergence test. Use the same Brownian increments for EM, Milstein, and the exact GBM path, then calculate the terminal mean absolute strong error for several values of \(N\) and fit the log--log slopes. I expect orders \(1/2\) and \(1\), but please include checks that could reveal an implementation mistake.'' &
+The slope could look convincing even if the simulation is wrong. In particular, using \(Z\) instead of \(\sqrt{h}Z\), generating a separate exact path, or fitting errors before the asymptotic range would change the result. We would reject the claim if the exact-path mean disagreed with \(S_0e^{\mu T}\), if errors did not decrease consistently, or if the fitted slopes fell outside the automatic acceptance bands. \\
+\hline
+
+% 保留上一版给你的第 2 行内容
+2 &
+``For the two-factor non-affine model there is no exact solution available. Can we use a 2048-step EM solution as a numerical reference and compare the coarser grids with it? Please construct every grid from the same fine Brownian increments, check the result again with 4096 and 8192 steps, and make sure the report does not describe the reference as exact. Also, do not claim a weak convergence rate if the payoff-bias confidence intervals still cross zero.'' &
+A 2048-step path still contains discretisation error, so measuring against it can make the coarse-grid error appear smaller and can distort the fitted slope. There is also a coding risk that the coarse increments are regenerated instead of summed from the fine increments. The claim would be weakened if the \(2048\mathbin{\to}4096\) and \(4096\mathbin{\to}8192\) differences failed to decrease, if the fitted slope changed substantially when the reference was refined, or if the measured increment variance and correlation missed their targets \(1\), \(1\), and \(-0.7\). \\
+\hline
+
+% 保留上一版给你的第 3 行内容
+3 &
+``Using the GBM results, compare EM and Milstein at the same strong-error target rather than at the same number of steps. Use a target MAE of \(0.85\), find the coarsest tested grid that passes for each method, and report the ratio. Is it valid to call that ratio a speedup? Please state exactly what is being counted and what is excluded.'' &
+The comparison counts time steps, but one Milstein step includes the additional quadratic correction and therefore costs more arithmetic than one EM step. Random-number generation, array allocation, and hardware effects are also absent from the count. The \(64{:}1\) result would not justify a \(64\)-fold runtime claim; repeated timings or an operation count at the same MAE could produce a smaller advantage or, in another accuracy regime, reverse the ranking. \\
+\hline
+\end{tabular}
+
+\endgroup
 
 \subsection{Independent verification and decisions}
-\begin{longtable}{p{0.06\textwidth}p{0.46\textwidth}p{0.40\textwidth}}
-\toprule
-Item & Independent check and evidence location & Final decision/modification/limitation\\
-\midrule
-1 & Exact GBM transition, exact moments, analytic mean bias, Tables
-\ref{tab:gbm-convergence}--\ref{tab:quantiles}, and automatic order checks. &
-Accepted the strong/weak claims; reported fitted standard errors and separated
-analytic weak bias from Monte Carlo estimates.\\
-2 & Fresh coupled 2048-to-4096 refinement, Eq.~\eqref{eq:refinement-result},
-plus increment variance/correlation checks. & Called the result ``empirical'';
-did not describe the reference as exact and did not claim a weak payoff slope.\\
-3 & Same strong-MAE threshold for both schemes and explicit cost exclusions in
-Section~\ref{sec:implementation}. & Reported a 64:1 step-count ratio only;
-explicitly withheld a wall-clock speedup claim.\\
-\bottomrule
-\end{longtable}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+
+\begin{tabular}{|p{0.05\textwidth}|p{0.44\textwidth}|p{0.44\textwidth}|}
+\hline
+\textbf{Item} &
+\textbf{Independent check and evidence location} &
+\textbf{Final decision, modification, or limitation} \\
+\hline
+
+1 &
+We checked the simulated paths against the exact GBM transition in Equation~(13), the exact mean and variance in Equation~(4), and the analytic mean-bias formula in Equation~(18). The errors in Table~2 decrease across the full mesh sequence, and the automatic tests check the fitted-order bands and the exact terminal mean. &
+We retained the strong-order conclusions because the fitted slopes, \(0.4899\) for EM and \(0.9099\) for Milstein, agree with the expected behaviour over the tested grids. The weak order is supported by the analytic bias slope \(0.9982\), not inferred only from a noisy Monte Carlo mean. The reported slope standard errors are described as regression diagnostics rather than proofs of the theoretical orders. \\
+
+\addlinespace
+
+2 &
+A separate validation run used 4000 fresh paths with seed \(20269918\). Increments were generated on the 8192-step grid and summed to construct the 4096-, 2048-, and coarser grids. The adjacent-reference MAEs decrease from \(0.057485\) to \(0.040731\) in Table~5, while the fitted slopes against the three references remain between \(0.489893\) and \(0.501554\) in Table~6. Increment variance, correlation, finiteness, and terminal positivity were also checked. &
+We kept the half-order statement but called it an \emph{empirical} trend relative to a numerical reference. We did not call the 2048-step solution exact, and we retained reference error as a limitation. Because every call-payoff bias interval in Table~4 contains zero, we did not calculate or report a weak payoff slope. \\
+
+\addlinespace
+
+3 &
+From the stored pathwise errors, we reapplied the same requirement,
+\(\mathbb{E}|S_N-S_T|\leq 0.85\), to both schemes. The first tested grids meeting it were \(N=128\) for EM, with MAE \(0.83833\), and \(N=2\) for Milstein, with MAE \(0.75433\). Section~4.5 separately lists the operations excluded from the cost measure. &
+We reported \(128/2=64\) only as a time-step-count ratio at the stated error target. We removed any interpretation of this value as a measured runtime speedup. Establishing an actual speedup would require repeated wall-clock timings on the same machine or a more detailed count of arithmetic, coefficient evaluations, and random-number costs. \\
+
+\hline
+\end{tabular}
+
+\endgroup
 
 \subsection{Intellectual ownership declaration}
 Before submission, every member must complete and sign the table below.  Each
@@ -875,11 +992,11 @@ validation without AI assistance during the viva.
 \toprule
 Name & Signature & Team-owned artefact/contribution & Trusted dependency/interface\\
 \midrule
-\texttt{<Name 1>} & & & \\
-\texttt{<Name 2>} & & & \\
-\texttt{<Name 3>} & & & \\
-\texttt{<Name 4>} & & & \\
-\texttt{<Name 5>} & & & \\
+\texttt{Jinyang Wang} & & & \\
+\texttt{Yangxiaoxiang Zheng} & & & \\
+\texttt{Jinsen Chen} & & & \\
+\texttt{Zheyuan Zheng} & & & \\
+\texttt{Dongdong Hao} & & & \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -887,38 +1004,377 @@ Name & Signature & Team-owned artefact/contribution & Trusted dependency/interfa
 % ============================================================
 \section{Individual Contribution Statements}
 % ============================================================
-The following forms are intentionally not pre-filled: contribution claims must
-be written by the corresponding student and remain traceable to the team's Git
-history.  Copy the appropriate concrete evidence (function, equation, figure,
-test, or report section) rather than writing ``worked on the report.''
 
-\newcommand{\icsform}[2]{
 \begin{formbox}
 \textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
-\textbf{Name:} \texttt{<#1>} \hfill \textbf{Role:} \texttt{<#2>}\\[0.4em]
+
+\textbf{Name:} \texttt{Jinyang Wang}
+\hfill
+\textbf{Role:} \texttt{Project Manager}\\[0.4em]
+
+\textbf{The specific things I did this project:}
+
+\begin{enumerate}[leftmargin=2em]
+
+\item I established the team's working structure and coordinated its weekly
+progress. In Week 1, I created the Git repository with the required
+\path{code/}, \path{figures/}, and \path{report/} structure, added all five
+team members and the instructor as collaborators, and confirmed that every
+member had cloned the repository and pushed at least once. I then ran the
+weekly team meetings and maintained the Gantt and milestone records for
+Weeks 1--3, assigning named tasks and tracking blockers. These included the
+Week 1 issue of evaluating the logistic-volatility function stably and the
+Week 2 issue of distinguishing a numerical non-affine reference from an
+exact solution.
+
+\item I coordinated the mathematical direction and reporting strategy. I led
+the selection of Topic ④ and prepared the defence used in Sections 1.1--1.2:
+GBM was selected because its exact transition provides a pathwise oracle for
+separating discretisation error from Monte Carlo uncertainty, while the
+non-affine extension requires the team to construct and validate a numerical
+reference. I used this distinction to organise responsibilities across the
+mathematical-theory, algorithm, validation, and visualization roles and to
+ensure that each experiment had a clear evidential purpose.
+
+\item I coordinated final integration and independently checked the
+reproducibility claim in Section 4.3. I collected the report sections from
+their respective owners, ran
+\path{python financial_sde_project.py}, and compared the reproduced console
+output and \path{generated/results.json} with the values reported in
+Tables 2--6 and Appendix A.2. I also compiled the team AI Transparency Log in
+Appendix C from the members' audit notes and coordinated completion of the
+five signed ICS forms in Appendix D.
+
+\end{enumerate}
+
+\textbf{The hardest conceptual obstacle and how I overcame it:}\\
+The hardest obstacle was converting a broad project brief into parallel,
+traceable work while keeping the distinction between exact and numerical
+validation clear. I overcame this by assigning an owner to every deliverable,
+recording blockers in the weekly milestones, and using GBM's exact oracle and
+the non-affine nested numerical reference as two separate validation chains.
+This allowed the team to work in parallel without treating the numerical
+reference as an exact answer.\\[0.4em]
+
+\textbf{One AI-assisted item I used and what I changed:}\\
+I cross-reference AI Transparency Log \textbf{Item 2}, concerning the nested
+Euler--Maruyama reference for the non-affine model. AI assistance helped us
+identify the reference-construction and refinement requirements, but I
+required the team to change the wording from ``exact reference'' to
+``numerical reference,'' add an independent refinement check, and state the
+measured strong rate as empirical. I also ensured that the associated risk,
+falsifier, evidence location, and final limitation were recorded in
+Appendix C rather than accepting the AI-generated claim without an audit.\\[0.4em]
+
+\textbf{What I would do differently / what I still need to understand:}\\
+I would study the project brief, assessment rubric, and ICS requirements in
+detail before the first meeting and prepare the repository structure, task
+allocation, submission checklist, and weekly schedule immediately. Because I
+adjusted my classes during the first week, I did not organise the project as
+early as I should have, which caused later tasks to be completed under time
+pressure. I also should have asked for help interpreting the ICS criteria
+before drafting my own version, rather than revising it after discovering that
+the contribution claims needed to be more specific and traceable.\\[0.6em]
+
+\textbf{Signature:} \underline{\hspace{4cm}}\qquad
+\textbf{Date:} \underline{\hspace{2.5cm}}
+
+\end{formbox}
+
+\newpage
+
+
+
+\begin{formbox}
+\textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
+
+\textbf{Name:} \texttt{Yangxiaoxiang Zheng (1929725)}
+\hfill
+\textbf{Role:} \texttt{Mathematical Theory}\\[0.4em]
+
+\textbf{The specific things I did this project:}
+
+\begin{enumerate}[leftmargin=2em]
+
+\item I completed and checked the mathematical derivations presented in
+Sections 2--3 and Equations (1)--(29). These included the It\^o
+log-transformation and exact solution of GBM, its terminal moments, the
+non-affine stochastic-volatility model, the Euler--Maruyama and Milstein
+schemes, pathwise coupling, strong and weak error definitions, the weak-bias
+expansion, positivity conditions, correlated Brownian increments, nested-grid
+coupling, and Monte Carlo uncertainty quantification. I also checked that the
+assumptions and limitations stated with these formulas were consistent with
+the Financial SDE extension pathway.
+
+\item I derived the Milstein correction in Equations (11)--(12). Setting
+$Y_s=W_s-W_{t_n}$ and applying It\^o's formula gives
+\[
+  d(Y_s^2)=2Y_s\,dW_s+ds,
+\]
+and hence
+\[
+  \int_{t_n}^{t_{n+1}}\int_{t_n}^{s}dW_r\,dW_s
+  =\frac{1}{2}\left[(\Delta W_n)^2-h\right].
+\]
+Substituting $b(S)=\sigma S$ and $b'(S)=\sigma$ produces the scalar GBM
+Milstein update. I checked the factor $1/2$, the $-h$ term, and the distinction
+between It\^o and Stratonovich integration. I also established the limitation
+stated in Section 3.6: the scalar Milstein formula cannot be transferred
+directly to the two-noise non-affine model because its diffusion fields
+produce cross derivatives and multidimensional iterated stochastic integrals.
+
+\item I independently verified the derivations and checked their consistency
+with the implementation. I re-derived the Milstein double integral using
+It\^o's formula, checked the strong/weak error definitions and weak-bias
+expansion through conditional expectations, and verified the EM and Milstein
+positivity conditions. I then compared the mathematical update formulas with
+the algorithm implementation to ensure that the shared Brownian increments,
+Milstein correction, correlated increments, and nested-grid sums matched the
+report. Evidence is located in Sections 3.2--3.8 and AI Transparency Log
+Items 1--3.
+
+\end{enumerate}
+
+\textbf{The hardest conceptual obstacle and how I overcame it:}\\
+The hardest conceptual obstacle was understanding why the Milstein correction
+contains both the factor $1/2$ and the term $-h$, and why the resulting scalar
+formula is valid for GBM but not automatically for the non-affine two-noise
+system. I overcame this by deriving the iterated stochastic integral directly
+from It\^o's formula, checking every substitution into the GBM diffusion
+coefficient, and then examining the cross derivatives of the non-affine
+diffusion fields before deciding that a scalar Milstein extension would be
+mathematically unjustified.\\[0.4em]
+
+\textbf{One AI-assisted item I used and what I changed:}\\
+I cross-reference AI Transparency Log \textbf{Item 1}, concerning the strong
+orders of Euler--Maruyama and Milstein under pathwise coupling. AI assistance
+was used to explain the It\^o--Taylor derivation and the double stochastic
+integral. I did not accept the derivation unchanged: I independently
+re-derived the integral using It\^o's formula, checked the $1/2$ and $-h$
+terms, verified the conditional-mean calculations, and added the explicit
+limitation that scalar Milstein cannot be applied directly to the non-affine
+two-noise model.\\[0.4em]
+
+\textbf{What I would do differently / what I still need to understand:}\\
+I would begin earlier with the basic It\^o-calculus identities and organise
+the theory in dependency order: exact GBM, Euler--Maruyama, scalar Milstein,
+error definitions, positivity, and finally the multidimensional non-affine
+model. I would also maintain a derivation-to-code checklist while the
+implementation was being developed, rather than performing most consistency
+checks near the end. I can independently explain the formulas used in this
+project; a natural topic for further study is the construction of full
+multidimensional Milstein schemes and their cross iterated integrals.\\[0.6em]
+
+\textbf{Signature:} \underline{\hspace{4cm}}\qquad
+\textbf{Date:} \underline{\hspace{2.5cm}}
+
+\end{formbox}
+
+\newpage
+
+
+
+
+\begin{formbox}
+\textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
+
+\textbf{Name:} \texttt{Jinsen Chen (2363993)}
+\hfill
+\textbf{Role:} \texttt{Algorithm Implementation}\\[0.4em]
+
+\textbf{The specific things I did this project:}
+
+\begin{enumerate}[leftmargin=2em]
+
+\item I developed the stochastic-algorithm layer recorded in two traceable
+Git histories. On branch \texttt{jooshuua-algorithm}, commit
+\texttt{e9e880f} added \texttt{Personal\_Algorithm\_Work.zip}, containing
+\texttt{gbm.py}, \texttt{nonaffine.py}, \texttt{convergence.py}, and
+\texttt{parameters.py}. On \texttt{main}, commit \texttt{dc1674a} added the
+618-line \texttt{financial\_sde\_algorithm\_flow.py}. My functions include
+\texttt{gbm\_exact\_step()}, \texttt{gbm\_em\_step()},
+\texttt{gbm\_milstein\_step()}, \texttt{coupled\_gbm\_terminal()},
+\texttt{correlated\_brownian\_increments()},
+\texttt{nonaffine\_em\_terminal()}, and \texttt{aggregate\_increments()}.
+They implement shared-increment GBM comparisons, correlated two-factor
+noise, log-price Euler--Maruyama, and nested coarse/fine Brownian paths.
+
+\item I implemented and reviewed algorithm-level validation. Evidence is in
+\texttt{check\_algorithms.py} inside the zip from commit \texttt{e9e880f}.
+It checks zero-coefficient GBM, preservation of fine-to-coarse increment
+sums, the target Brownian correlation, bounded logistic volatility, finite
+positive non-affine prices, and the observed EM and Milstein strong orders.
+In commit \texttt{dc1674a}, the functions \texttt{mean\_ci95()},
+\texttt{fitted\_slope()}, and \texttt{refine\_nonaffine\_reference()} add
+confidence intervals, log--log order estimates, and coupled
+2048/4096/8192-step reference-sensitivity checks.
+
+\item For the experiments reported in the \emph{Discretisation and
+mathematical analysis} and \emph{Implementation and reproducibility}
+sections, I decided that exact GBM, EM, and Milstein must share Brownian
+increments, and that each non-affine coarse path must be constructed by
+summing increments from its fine path. I did not apply the scalar Milstein
+formula to the two-noise model because a valid multidimensional method
+requires cross terms and iterated stochastic integrals. Its measured strong
+rate is therefore reported as empirical rather than as an exact-reference
+error.
+
+\end{enumerate}
+
+\textbf{The hardest conceptual obstacle and how I overcame it:}\\
+The hardest issue was comparing stochastic discretisations on the same
+Brownian path. Independently generated paths would mix Monte Carlo variation
+with time-discretisation error. I overcame this by sharing every
+$\Delta W$ in the GBM comparison and constructing each non-affine coarse
+increment as a sum of increments from the common fine path.\\[0.4em]
+
+\textbf{One AI-assisted item I used and what I changed:}\\
+I cross-reference AI Transparency Log \textbf{Item 2}, concerning the nested
+Euler--Maruyama reference. I did not treat the suggested fine-grid result as
+exact. I explicitly coupled all grids, added 2048/4096/8192-step refinement
+checks and confidence intervals, and described the observed strong rate as
+empirical. I also retained Euler--Maruyama rather than accepting an
+unjustified scalar Milstein extension to the two-noise system.\\[0.4em]
+
+\textbf{What I would do differently / what I still need to understand:}\\
+I would merge \texttt{jooshuua-algorithm} through a reviewed pull request
+and use smaller commits for GBM, non-affine simulation, and convergence
+analysis, rather than later uploading one complete file to \texttt{main}.
+I still need a deeper understanding of multidimensional Milstein methods,
+especially cross iterated integrals for non-commutative noise.\\[0.6em]
+
+\textbf{Signature:} \underline{\hspace{4cm}}\qquad
+\textbf{Date:} \underline{\hspace{2.5cm}}
+
+\end{formbox}
+
+\newpage
+
+\begin{formbox}
+\textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
+
+\textbf{Name:} \texttt{Zheyuan Zheng (2362114)}
+\hfill
+\textbf{Role:} \texttt{Visualization \& Report}\\[0.4em]
+
+\textbf{The specific things I did this project:}
+
+\begin{enumerate}[leftmargin=2em]
+
+\item I wrote and refined the figure-generation code in
+\path{financial_sde_project.py}. The functions
+\path{plot_gbm_convergence()} and \path{add_loglog_fit_band()} produce the
+GBM convergence figure, including OLS slopes and standard errors obtained
+with \path{np.polyfit(...,cov=True)}, theoretical $h^{1/2}$ and $h$ reference
+slopes, filled markers for the fitted range, and pointwise 95\% OLS fit
+bands. I also implemented the error-versus-cost figure
+\path{fig07_gbm_cost_accuracy.png}, the non-affine convergence figure, and
+the reference-sensitivity figure
+\path{fig06_reference_sensitivity.png}. These figures show the matched-error
+step-count comparison, empirical non-affine convergence, and the stability
+of the fitted slope under reference-grid refinement.
+
+\item I checked every figure caption against
+\path{latex/generated/results.json} and \path{run_output.txt}. I verified
+the fitted slopes and their reported uncertainties, the common target
+$\mathrm{MAE}\leq0.85$, the $M=300{,}000$ paths behind the observation floor
+$1/M=3.3\times10^{-6}$, and the adjacent-reference differences. The evidence
+is located in the captions of Figures 1--7 and in those two generated files.
+I also checked that the number of figures quoted in the report matched the
+seven figures produced by the reproducible workflow.
+
+\item I made three reporting decisions to prevent the figures from
+overstating the evidence. In Section 5.4, a zero observed violation rate is
+reported as ``none observed in 300,000 paths,'' accompanied by the
+observation floor $1/M$ and the rule-of-three bound
+$3/M=1.0\times10^{-5}$, rather than being presented as a mathematical
+guarantee. In Section 5.5, the finest grid $N=256$ is excluded from the
+slope fit as a near-reference diagnostic, and the fitted non-affine rate is
+labelled empirical because the reference is numerical. In the
+reference-sensitivity figure, the change from $0.5016$ to $0.4899$ is
+reported as evidence that the approximate half-order trend is not an
+artefact of one reference grid.
+
+\end{enumerate}
+
+\textbf{The hardest conceptual obstacle and how I overcame it:}\\
+The hardest obstacle was distinguishing two different kinds of uncertainty.
+A paired Monte Carlo confidence interval measures sampling noise, whereas an
+OLS band around a log--log fit measures regression uncertainty conditional
+on the selected grids. My first draft used one type of band and could have
+suggested that slope uncertainty came entirely from randomness. I separated
+the paired 95\% Monte Carlo intervals from the OLS fit bands and used the
+analytic-bias panel as a noise-free control. A second difficulty was plotting
+a zero observed rate on a logarithmic axis; I used the $1/M$ observation
+floor and the $3/M$ rule-of-three bound to distinguish ``not observed'' from
+``impossible.''\\[0.4em]
+
+\textbf{One AI-assisted item I used and what I changed:}\\
+I cross-reference AI Transparency Log \textbf{Item 3}, concerning the
+matched-accuracy cost comparison. The AI-assisted draft plotted error
+against step count and described Milstein as 64 times faster. I changed the
+figure and interpretation by marking only the coarsest grids that passed the
+same threshold, $\mathrm{MAE}\leq0.85$, and by defining cost explicitly as
+time steps per path. I listed the excluded costs---setup, file I/O, plotting,
+compilation, allocation, and the extra algebra within a Milstein step---and
+replaced the wall-clock speed claim with a limited 64:1 step-count comparison.
+I also stated the falsifier: repeated wall-clock or operation-count
+measurements at the same error target could reverse the conclusion.\\[0.4em]
+
+\textbf{What I would do differently / what I still need to understand:}\\
+I would establish the visual conventions before producing the figures,
+including the cost measure, the meaning of each uncertainty band, the fitted
+grid range, and the wording used for a zero observed rate. I would also ask
+earlier which error definition each figure was intended to display. I can
+explain the scalar Milstein correction used for GBM, but I still need a
+deeper understanding of its It\^o--Taylor derivation and of the cross terms
+and iterated stochastic integrals required for a full multidimensional
+Milstein method.\\[0.6em]
+
+\textbf{Signature:} Zheyuan Zheng
+\qquad
+\textbf{Date:} 18 September 2026
+
+\end{formbox}
+
+\newpage
+
+\begin{formbox}
+\textbf{Individual Contribution Statement --- Project 1 (Financial SDE)}\\[0.4em]
+
+\textbf{Name:} Dongdong Hao (2364312)
+\hfill
+\textbf{Role:} Testing \& Validation\\[0.4em]
+
 \textbf{The specific things I did this project:}
 \begin{enumerate}[leftmargin=2em]
-\item \texttt{<Name a file/function/equation/figure and the exact work done.>}
-\item \texttt{<Name a validation or review action and its evidence location.>}
-\item \texttt{<Name a report section or experiment and the decision made.>}
+
+\item I independently tested the submitted implementation by checking out the exact Git commit
+\path{ef1880737f33764acc016832a8953057e1bc8108}
+and running \path{Team_H_Code/code/run_all.py} locally using Python 3.13.7.
+The program exited successfully with \texttt{OVERALL: PASS}, and I recorded the exit status and the results of all ten built-in validation checks. I also repeated the run and compared the console summaries to confirm that the reported results were reproducible.
+
+\item I reviewed the reported GBM results against the acceptance criteria implemented in the code. This included the Euler--Maruyama and Milstein strong-convergence slopes of \(0.4899\) and \(0.9099\), the analytic weak-bias slope of \(0.9982\), the exact terminal-mean comparison, and the variance and target-correlation checks for the generated Brownian increments. I documented the evidence in \path{financial_sde_test_report.md}, with supporting output stored in \path{run_output.txt} and \path{results.json}.
+
+\item I validated the non-affine experiment by checking that the reference terminal values were finite and positive, confirming the empirical strong slope of \(0.5111\), and reviewing the reference-refinement sequence \(2048 \rightarrow 4096 \rightarrow 8192\). The adjacent-reference MAE decreased from \(0.0575\) to \(0.0407\), supporting the stability of the numerical-reference construction. I also recorded that this was numerical evidence rather than proof that the finest reference was exact.
+
 \end{enumerate}
+
 \textbf{The hardest conceptual obstacle and how I overcame it:}\\
-\texttt{<Specific mathematical or algorithmic difficulty.>}\\[0.4em]
+The main difficulty was distinguishing a successful numerical rerun from a complete reproducibility guarantee. A passing result can still depend on the checked-out commit, Python version, dependency versions, random seeds, and the precise acceptance criteria. I addressed this by testing an exact Git commit, recording the Python version and exit status, preserving the console output and JSON results, and checking each reported convergence or statistical value against the corresponding criterion. I also stated explicitly that my checks validated the numerical outputs, but did not establish the visual quality of every figure or reproduce every intermediate development state.\\[0.4em]
+
 \textbf{One AI-assisted item I used and what I changed:}\\
-\texttt{<Cross-reference AI Transparency Log item 1, 2, or 3.>}\\[0.4em]
+For AI Transparency Log item 2, concerning the nested numerical reference for the non-affine model, I used Codex to help organize and translate my testing record into a structured validation report. I independently executed the team's code and replaced general AI-generated descriptions with the observed evidence: the \(2048\), \(4096\), and \(8192\) reference levels, the adjacent MAE reduction from \(0.0575\) to \(0.0407\), the finite-and-positive terminal-value checks, and the empirical slope of \(0.5111\). The numerical values and \texttt{PASS} results came from the program execution rather than from AI.\\[0.4em]
+
 \textbf{What I would do differently / what I still need to understand:}\\
-\texttt{<Honest reflection.>}\\[0.6em]
+I would define the software-version requirements and evidence-storage structure before beginning the tests, then repeat the validation in an environment matching the exact dependency versions stated in the README. I would also add an automated test that runs on the designated team commit whenever later changes are introduced. I should have clarified earlier whether the testing role required formal visual inspection of every generated figure and whether exact README dependency versions were mandatory. My current checks establish the consistency of the main numerical results, but they do not fully evaluate figure presentation or every intermediate computational state.\\[0.6em]
+
 \textbf{Signature:} \underline{\hspace{4cm}}\qquad
 \textbf{Date:} \underline{\hspace{2.5cm}}
 \end{formbox}
-\newpage
-}
 
-\icsform{Name 1}{Project Manager}
-\icsform{Name 2}{Mathematical Theory}
-\icsform{Name 3}{Algorithm Implementation}
-\icsform{Name 4}{Visualization \& Report}
-\icsform{Name 5}{Testing \& Validation}
+\newpage
+
 
 % ============================================================
 \section{Submission evidence matrix}
@@ -943,8 +1399,9 @@ Table~\ref{tab:quantiles}, moment oracle, increment variance/correlation,
 finiteness, positivity.\\
 Non-affine nested validation & Equation~\eqref{eq:nested-sum},
 Table~\ref{tab:nonaffine}, Figure~\ref{fig:nonaff-convergence}, and
-2048-to-4096 refinement.\\
-Reproducible code and figures & One command regenerates five fixed-name,
+2048-to-4096-to-8192 refinement and fixed-sample slope sensitivity
+(Tables~\ref{tab:reference-refinement}--\ref{tab:reference-slopes}).\\
+Reproducible code and figures & One command regenerates six fixed-name,
 220-DPI figures, JSON, and console output; fixed seed; no absolute paths.\\
 Interpretive visualisations & Every figure has units, a colorblind-safe palette,
 and a caption stating both the evidence and its significance.\\
